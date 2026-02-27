@@ -11,55 +11,70 @@ TO_EMAIL = "wjddmlvk@gmail.com"
 TOP_N = 20
 
 
-def scan_futures_hot():
-    url = "https://fapi.binance.us/fapi/v1/ticker/24hr"
+def scan_coinbase_hot():
+    base_url = "https://api.exchange.coinbase.com"
 
-    response = requests.get(url, timeout=10)
+    try:
+        products = requests.get(f"{base_url}/products", timeout=10).json()
 
-    if response.status_code != 200:
-        return None, None, f"API 실패: {response.status_code}"
+        usd_pairs = [
+            p for p in products
+            if p["quote_currency"] == "USD"
+            and p["status"] == "online"
+        ]
 
-    data = response.json()
+        results = []
 
-    usdt_pairs = [
-        d for d in data
-        if d["symbol"].endswith("USDT")
-    ]
+        for product in usd_pairs:
+            product_id = product["id"]
 
-    # 1️⃣ 거래대금 기준 정렬
-    sorted_by_volume = sorted(
-        usdt_pairs,
-        key=lambda x: float(x["quoteVolume"]),
-        reverse=True
-    )
+            stats = requests.get(
+                f"{base_url}/products/{product_id}/stats",
+                timeout=5
+            )
 
-    top_150 = sorted_by_volume[:150]
+            if stats.status_code != 200:
+                continue
 
-    hot_up = []
-    hot_down = []
+            s = stats.json()
 
-    for coin in top_150:
-        volume = float(coin["quoteVolume"])
-        change = float(coin["priceChangePercent"])
+            volume = float(s["volume"])
+            high = float(s["high"])
+            low = float(s["low"])
 
-        score = volume * abs(change)
+            if low == 0:
+                continue
 
-        coin_data = {
-            "symbol": coin["symbol"],
-            "volume": volume,
-            "change": change,
-            "score": score
-        }
+            change_pct = ((high - low) / low) * 100
+            dollar_volume = volume * high
 
-        if change >= 4:
-            hot_up.append(coin_data)
-        elif change <= -4:
-            hot_down.append(coin_data)
+            score = dollar_volume * abs(change_pct)
 
-    hot_up = sorted(hot_up, key=lambda x: x["score"], reverse=True)[:TOP_N]
-    hot_down = sorted(hot_down, key=lambda x: x["score"], reverse=True)[:TOP_N]
+            results.append({
+                "symbol": product_id,
+                "volume": dollar_volume,
+                "change": change_pct,
+                "score": score
+            })
 
-    return hot_up, hot_down, None
+        # 거래대금 기준 상위 150개
+        results = sorted(results, key=lambda x: x["volume"], reverse=True)[:150]
+
+        hot_up = [
+            r for r in results if r["change"] >= 4
+        ]
+
+        hot_down = [
+            r for r in results if r["change"] <= -4
+        ]
+
+        hot_up = sorted(hot_up, key=lambda x: x["score"], reverse=True)[:TOP_N]
+        hot_down = sorted(hot_down, key=lambda x: x["score"], reverse=True)[:TOP_N]
+
+        return hot_up, hot_down, None
+
+    except Exception as e:
+        return None, None, str(e)
 
 
 def send_email(hot_up, hot_down, error_msg):
@@ -68,9 +83,9 @@ def send_email(hot_up, hot_down, error_msg):
     if error_msg:
         body = f"❌ 오류 발생\n\n{error_msg}"
     else:
-        body = f"🔥 Binance FUTURES STRONG HOT\n기준시각: {now}\n\n"
+        body = f"🔥 Coinbase STRONG HOT COINS\n기준시각: {now}\n\n"
 
-        body += "📈 상승 HOT TOP 20 (선물)\n"
+        body += "📈 상승 HOT TOP 20\n"
         body += "-" * 50 + "\n"
         for coin in hot_up:
             body += (
@@ -79,7 +94,7 @@ def send_email(hot_up, hot_down, error_msg):
                 f"${coin['volume']:,.0f}\n"
             )
 
-        body += "\n📉 하락 HOT TOP 20 (선물)\n"
+        body += "\n📉 하락 HOT TOP 20\n"
         body += "-" * 50 + "\n"
         for coin in hot_down:
             body += (
@@ -89,7 +104,7 @@ def send_email(hot_up, hot_down, error_msg):
             )
 
     msg = MIMEText(body)
-    msg["Subject"] = "🔥 Binance Futures HOT Top 20"
+    msg["Subject"] = "🔥 Coinbase HOT Top 20"
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = TO_EMAIL
 
@@ -100,5 +115,5 @@ def send_email(hot_up, hot_down, error_msg):
 
 
 if __name__ == "__main__":
-    hot_up, hot_down, error_msg = scan_futures_hot()
+    hot_up, hot_down, error_msg = scan_coinbase_hot()
     send_email(hot_up, hot_down, error_msg)
