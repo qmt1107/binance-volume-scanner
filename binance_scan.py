@@ -12,7 +12,7 @@ TOP_N = 20
 
 
 def scan_top_volume():
-    url = "https://api.binance.com/api/v3/ticker/24hr"
+    url = "https://api.binance.us/api/v3/ticker/24hr"
 
     try:
         response = requests.get(url, timeout=10)
