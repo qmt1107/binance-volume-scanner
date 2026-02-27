@@ -5,9 +5,9 @@ from email.mime.text import MIMEText
 from datetime import datetime
 import time
 
-EMAIL_ADDRESS = "your_email@gmail.com"
+EMAIL_ADDRESS = "wjddmlvk@gmail.com"
 EMAIL_PASSWORD = os.getenv("EMAIL_PASS")
-TO_EMAIL = "your_email@gmail.com"
+TO_EMAIL = "wjddmlvk@gmail.com"
 
 VOLUME_MULTIPLIER = 3
 TOP_N = 10
@@ -74,8 +74,8 @@ def send_email(results):
 
     msg = MIMEText(body)
     msg["Subject"] = f"Volume Report - {now}"
-    msg["From"] = "wjddmlvk@gmail.com"
-    msg["To"] = "wjddmlvk@gmail.com"
+    msg["From"] = EMAIL_ADDRESS
+    msg["To"] = TO_EMAIL
 
     server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
     server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
