@@ -1,9 +1,9 @@
 import requests
-import pandas as pd
 import smtplib
 import os
 from email.mime.text import MIMEText
 from datetime import datetime
+import time
 
 EMAIL_ADDRESS = "your_email@gmail.com"
 EMAIL_PASSWORD = os.getenv("EMAIL_PASS")
@@ -15,27 +15,47 @@ INTERVAL = "1h"
 
 def scan_volume():
     results = []
-    exchange = requests.get("https://api.binance.com/api/v3/exchangeInfo").json()
+
+    url = "https://api.binance.com/api/v3/exchangeInfo"
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        print("ExchangeInfo API failed")
+        return []
+
+    exchange = response.json()
+
+    if "symbols" not in exchange:
+        print("Symbols key not found:", exchange)
+        return []
 
     symbols = [
         s["symbol"] for s in exchange["symbols"]
         if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
     ]
 
-    for symbol in symbols[:100]:  # 속도 안정 위해 100개만 테스트
+    for symbol in symbols[:50]:  # 안정성 위해 50개만 테스트
         try:
             klines = requests.get(
                 "https://api.binance.com/api/v3/klines",
                 params={"symbol": symbol, "interval": INTERVAL, "limit": 50}
-            ).json()
+            )
 
-            volumes = [float(k[5]) for k in klines]
+            if klines.status_code != 200:
+                continue
+
+            data = klines.json()
+            volumes = [float(k[5]) for k in data]
+
             avg_vol = sum(volumes[:-1]) / len(volumes[:-1])
             last_vol = volumes[-1]
 
             if last_vol > avg_vol * VOLUME_MULTIPLIER:
                 ratio = last_vol / avg_vol
                 results.append((symbol, ratio))
+
+            time.sleep(0.1)
+
         except:
             continue
 
