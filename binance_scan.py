@@ -10,46 +10,61 @@ TO_EMAIL = "wjddmlvk@gmail.com"
 
 TOP_N = 20
 
+
 def scan_top_volume():
     url = "https://api.binance.com/api/v3/ticker/24hr"
-    response = requests.get(url)
 
-    if response.status_code != 200:
-        print("24hr API failed")
-        return []
+    try:
+        response = requests.get(url, timeout=10)
 
-    data = response.json()
+        if response.status_code != 200:
+            return [], f"API 실패: 상태코드 {response.status_code}"
 
-    usdt_pairs = [
-        d for d in data
-        if d["symbol"].endswith("USDT")
-    ]
+        data = response.json()
 
-    # 거래대금 기준 정렬 (quoteVolume)
-    sorted_pairs = sorted(
-        usdt_pairs,
-        key=lambda x: float(x["quoteVolume"]),
-        reverse=True
-    )
+        if not isinstance(data, list):
+            return [], f"API 응답 이상: {data}"
 
-    return sorted_pairs[:TOP_N]
+        usdt_pairs = [
+            d for d in data
+            if d.get("symbol", "").endswith("USDT")
+        ]
+
+        if len(usdt_pairs) == 0:
+            return [], "USDT 페어 없음"
+
+        sorted_pairs = sorted(
+            usdt_pairs,
+            key=lambda x: float(x.get("quoteVolume", 0)),
+            reverse=True
+        )
+
+        return sorted_pairs[:TOP_N], None
+
+    except Exception as e:
+        return [], f"에러 발생: {str(e)}"
 
 
-def send_email(results):
+def send_email(results, error_msg):
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
-    body = f"📊 Binance 24H Trading Value Top {TOP_N}\n\n"
+    if error_msg:
+        body = f"❌ 오류 발생\n\n{error_msg}"
+    elif not results:
+        body = "⚠ 결과가 비어있습니다."
+    else:
+        body = f"📊 Binance 24H Trading Value Top {TOP_N}\n\n"
 
-    for i, coin in enumerate(results, 1):
-        symbol = coin["symbol"]
-        quote_volume = float(coin["quoteVolume"])
-        price_change = float(coin["priceChangePercent"])
+        for i, coin in enumerate(results, 1):
+            symbol = coin.get("symbol", "N/A")
+            quote_volume = float(coin.get("quoteVolume", 0))
+            price_change = float(coin.get("priceChangePercent", 0))
 
-        body += (
-            f"{i}. {symbol}\n"
-            f"   거래대금: ${quote_volume:,.0f}\n"
-            f"   24h 변동률: {price_change:.2f}%\n\n"
-        )
+            body += (
+                f"{i}. {symbol}\n"
+                f"   거래대금: ${quote_volume:,.0f}\n"
+                f"   24h 변동률: {price_change:.2f}%\n\n"
+            )
 
     msg = MIMEText(body)
     msg["Subject"] = f"Binance 24H Volume Top {TOP_N}"
@@ -63,5 +78,5 @@ def send_email(results):
 
 
 if __name__ == "__main__":
-    results = scan_top_volume()
-    send_email(results)
+    results, error_msg = scan_top_volume()
+    send_email(results, error_msg)
