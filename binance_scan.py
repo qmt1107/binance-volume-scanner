@@ -74,8 +74,8 @@ def send_email(results):
 
     msg = MIMEText(body)
     msg["Subject"] = f"Volume Report - {now}"
-    msg["From"] = wjddmlvk@gmail.com
-    msg["To"] = wjddmlvk@gmail.com
+    msg["From"] = "wjddmlvk@gmail.com"
+    msg["To"] = "wjddmlvk@gmail.com"
 
     server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
     server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
