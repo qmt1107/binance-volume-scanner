@@ -3,77 +3,56 @@ import smtplib
 import os
 from email.mime.text import MIMEText
 from datetime import datetime
-import time
 
 EMAIL_ADDRESS = "wjddmlvk@gmail.com"
 EMAIL_PASSWORD = os.getenv("EMAIL_PASS")
 TO_EMAIL = "wjddmlvk@gmail.com"
 
-VOLUME_MULTIPLIER = 3
-TOP_N = 50
-INTERVAL = "24h"
+TOP_N = 20
 
-def scan_volume():
-    results = []
-
-    url = "https://api.binance.com/api/v3/exchangeInfo"
+def scan_top_volume():
+    url = "https://api.binance.com/api/v3/ticker/24hr"
     response = requests.get(url)
 
     if response.status_code != 200:
-        print("ExchangeInfo API failed")
+        print("24hr API failed")
         return []
 
-    exchange = response.json()
+    data = response.json()
 
-    if "symbols" not in exchange:
-        print("Symbols key not found:", exchange)
-        return []
-
-    symbols = [
-        s["symbol"] for s in exchange["symbols"]
-        if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
+    usdt_pairs = [
+        d for d in data
+        if d["symbol"].endswith("USDT")
     ]
 
-    for symbol in symbols[:50]:  # 안정성 위해 50개만 테스트
-        try:
-            klines = requests.get(
-                "https://api.binance.com/api/v3/klines",
-                params={"symbol": symbol, "interval": INTERVAL, "limit": 50}
-            )
+    # 거래대금 기준 정렬 (quoteVolume)
+    sorted_pairs = sorted(
+        usdt_pairs,
+        key=lambda x: float(x["quoteVolume"]),
+        reverse=True
+    )
 
-            if klines.status_code != 200:
-                continue
+    return sorted_pairs[:TOP_N]
 
-            data = klines.json()
-            volumes = [float(k[5]) for k in data]
-
-            avg_vol = sum(volumes[:-1]) / len(volumes[:-1])
-            last_vol = volumes[-1]
-
-            if last_vol > avg_vol * VOLUME_MULTIPLIER:
-                ratio = last_vol / avg_vol
-                results.append((symbol, ratio))
-
-            time.sleep(0.1)
-
-        except:
-            continue
-
-    results.sort(key=lambda x: x[1], reverse=True)
-    return results[:TOP_N]
 
 def send_email(results):
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
-    if not results:
-        body = "거래량 급등 코인이 없습니다."
-    else:
-        body = "📈 Binance Volume Surge\n\n"
-        for s in results:
-            body += f"{s[0]} | {round(s[1],2)}x\n"
+    body = f"📊 Binance 24H Trading Value Top {TOP_N}\n\n"
+
+    for i, coin in enumerate(results, 1):
+        symbol = coin["symbol"]
+        quote_volume = float(coin["quoteVolume"])
+        price_change = float(coin["priceChangePercent"])
+
+        body += (
+            f"{i}. {symbol}\n"
+            f"   거래대금: ${quote_volume:,.0f}\n"
+            f"   24h 변동률: {price_change:.2f}%\n\n"
+        )
 
     msg = MIMEText(body)
-    msg["Subject"] = f"Volume Report - {now}"
+    msg["Subject"] = f"Binance 24H Volume Top {TOP_N}"
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = TO_EMAIL
 
@@ -82,6 +61,7 @@ def send_email(results):
     server.send_message(msg)
     server.quit()
 
+
 if __name__ == "__main__":
-    data = scan_volume()
-    send_email(data)
+    results = scan_top_volume()
+    send_email(results)
