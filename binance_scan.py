@@ -10,8 +10,8 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASS")
 TO_EMAIL = "wjddmlvk@gmail.com"
 
 VOLUME_MULTIPLIER = 3
-TOP_N = 10
-INTERVAL = "1h"
+TOP_N = 50
+INTERVAL = "24h"
 
 def scan_volume():
     results = []
