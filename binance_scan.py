@@ -12,7 +12,7 @@ TOP_N = 20
 
 
 def scan_futures_hot():
-    url = "https://fapi.binance.com/fapi/v1/ticker/24hr"
+    url = "https://fapi.binance.us/fapi/v1/ticker/24hr"
 
     response = requests.get(url, timeout=10)
 
